@@ -12,7 +12,9 @@ class CPU:
         self.reg = [0] * 7
         self.pc = 0
         self.instructions = {
-            0b10000010: self.ldi
+            0b10000010: self.ldi,
+            0b00000001: "HLT",
+            0b01000111: self.prn
         }
 
     def ram_read(self, mar):
@@ -75,9 +77,20 @@ class CPU:
         """Run the CPU."""
         while True:
             ir = self.ram[self.pc]
-
-            if ir == 0b00000001:
+            if self.instructions[ir] == "HLT":
                 break
             else:
                 self.instructions[ir]()
                 self.pc += 1
+
+    def ldi(self):
+        self.pc += 1
+        reg_address = self.ram_read(self.pc)
+        self.pc += 1
+        reg_value = self.ram_read(self.pc)
+
+        self.reg[reg_address] = reg_value
+
+    def prn(self):
+        self.pc += 1
+        print(f"{self.reg[self.ram[self.pc]]}")
