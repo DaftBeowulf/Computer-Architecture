@@ -79,9 +79,12 @@ class CPU:
             ir = self.ram[self.pc]
             if self.instructions[ir] == "HLT":
                 break
-            else:
+            elif ir in self.instructions:
                 self.instructions[ir]()
                 self.pc += 1
+            else:
+                print(f"Unknown command at pc index {self.pc}")
+                sys.exit(1)
 
     def ldi(self):
         self.pc += 1
