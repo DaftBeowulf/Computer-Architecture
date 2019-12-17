@@ -23,26 +23,23 @@ class CPU:
     def ram_write(self, mar, val):
         self.ram[mar] = val
 
-    def load(self):
+    def load(self, filename):
         """Load a program into memory."""
 
         address = 0
 
-        # For now, we've just hardcoded a program:
+        with open(filename) as f:
+            for line in f:
+                n = line.split('#')  # ignore everything to right of a comment
+                n[0] = n[0].strip()  # remove all whitespace
 
-        program = [
-            # From print8.ls8
-            0b10000010,  # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111,  # PRN R0
-            0b00000000,
-            0b00000001,  # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+                if n[0] == '':  # ignore blank or comment-only lines
+                    continue
+                # cast the binary command string to an integer
+                val = int(n[0], 2)
+                # store it at the current address in memory
+                self.ram[address] = val
+                address += 1
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
