@@ -12,9 +12,10 @@ class CPU:
         self.reg = [0] * 8
         self.pc = 0
         self.instructions = {
-            0b10000010: self.ldi,
             0b00000001: "HLT",
-            0b01000111: self.prn
+            0b10000010: self.ldi,
+            0b01000111: self.prn,
+            0b10100010: self.mul
         }
 
     def ram_read(self, mar):
@@ -73,7 +74,9 @@ class CPU:
     def run(self):
         """Run the CPU."""
         while True:
+            # fetch corresponding command from an instruction list instead of using large if/else block
             ir = self.ram[self.pc]
+
             if self.instructions[ir] == "HLT":
                 break
             elif ir in self.instructions:
@@ -93,3 +96,16 @@ class CPU:
     def prn(self):
         print(f"{self.reg[self.ram[self.pc+1]]}")
         self.pc += 2
+
+    def mul(self):
+        """
+        Passes the next two inputs (register addresses)
+        and multiplies the values stored there.
+        Stores the result in the first register address.
+        """
+        reg_address_1 = self.ram_read(self.pc + 1)
+        reg_address_2 = self.ram_read(self.pc + 2)
+
+        multiplied = self.reg[reg_address_1] * self.reg[reg_address_2]
+        self.reg[reg_address_1] = multiplied
+        self.pc += 3
