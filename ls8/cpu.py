@@ -83,6 +83,7 @@ class CPU:
                 self.instructions[ir]()
             else:
                 print(f"Unknown command at pc index {self.pc}")
+                self.trace()
                 sys.exit(1)
 
     def ldi(self):
@@ -93,6 +94,5 @@ class CPU:
         self.pc += 3
 
     def prn(self):
-        self.pc += 1
-        print(f"{self.reg[self.ram[self.pc]]}")
-        self.pc += 1
+        print(f"{self.reg[self.ram[self.pc+1]]}")
+        self.pc += 2
