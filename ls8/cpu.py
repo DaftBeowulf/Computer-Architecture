@@ -8,8 +8,8 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        self.ram = [0] * 255
-        self.reg = [0] * 7
+        self.ram = [0] * 256
+        self.reg = [0] * 8
         self.pc = 0
         self.instructions = {
             0b10000010: self.ldi,
@@ -81,19 +81,18 @@ class CPU:
                 break
             elif ir in self.instructions:
                 self.instructions[ir]()
-                self.pc += 1
             else:
                 print(f"Unknown command at pc index {self.pc}")
                 sys.exit(1)
 
     def ldi(self):
-        self.pc += 1
-        reg_address = self.ram_read(self.pc)
-        self.pc += 1
-        reg_value = self.ram_read(self.pc)
+        reg_address = self.ram_read(self.pc + 1)
+        reg_value = self.ram_read(self.pc + 2)
 
         self.reg[reg_address] = reg_value
+        self.pc += 3
 
     def prn(self):
         self.pc += 1
         print(f"{self.reg[self.ram[self.pc]]}")
+        self.pc += 1
