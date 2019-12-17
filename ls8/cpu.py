@@ -47,7 +47,8 @@ class CPU:
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        # elif op == "SUB": etc
+        elif op == "MUL":
+            self.reg[reg_a] = self.reg[reg_a] * self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -102,10 +103,10 @@ class CPU:
         Passes the next two inputs (register addresses)
         and multiplies the values stored there.
         Stores the result in the first register address.
-        """
-        reg_address_1 = self.ram_read(self.pc + 1)
-        reg_address_2 = self.ram_read(self.pc + 2)
 
-        multiplied = self.reg[reg_address_1] * self.reg[reg_address_2]
-        self.reg[reg_address_1] = multiplied
+        Now has alu() run this since it's an ALU op
+        """
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.alu('MUL', reg_a, reg_b)
         self.pc += 3
