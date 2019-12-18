@@ -118,6 +118,12 @@ class CPU:
     def push(self):
         sp = self.reg[7]  # Stack Pointer is held in reserved R07
 
+        # if danger of stack overflow, print warning and exit
+        if self.ram[sp-1] != 0:
+            print("Stack overflow!")
+            self.trace()
+            return
+
         # grab next instruction for register address containing value
         reg_address = self.ram_read(self.pc + 1)
         reg_val = self.reg[reg_address]
@@ -131,6 +137,12 @@ class CPU:
 
     def pop(self):
         sp = self.reg[7]
+
+        # if the stack is empty, do nothing and print an error
+        if sp == len(self.ram)-11:
+            print("Error! Attempted to pop from stack while stack was empty")
+            self.trace()
+            return
 
         # grab next instruction for address that will contain the popped value
         reg_address = self.ram_read(self.pc + 1)
