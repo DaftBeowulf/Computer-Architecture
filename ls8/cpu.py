@@ -10,8 +10,8 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         # hard-coded for now, will test programmatic after test
-        self.reg = [0] * 7 + [245]
-        # final register reserved for SP -- watches index of ram[-12] when stack is empty
+        self.reg = [0] * 7 + [len(self.ram)-11]
+        # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
         self.pc = 0
         self.instructions = {
             0b00000001: "HLT",
