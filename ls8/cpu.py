@@ -9,13 +9,17 @@ class CPU:
     def __init__(self):
         """Construct a new CPU."""
         self.ram = [0] * 256
-        self.reg = [0] * 8
+        # hard-coded for now, will test programmatic after test
+        self.reg = [0] * 7 + [245]
+        # final register reserved for SP -- watches index of ram[-12] when stack is empty
         self.pc = 0
         self.instructions = {
             0b00000001: "HLT",
             0b10000010: self.ldi,
             0b01000111: self.prn,
-            0b10100010: self.mul
+            0b10100010: self.mul,
+            0b01000101: self.push,
+            0b01000110: self.pop
         }
 
     def ram_read(self, mar):
@@ -110,3 +114,36 @@ class CPU:
         reg_b = self.ram_read(self.pc + 2)
         self.alu('MUL', reg_a, reg_b)
         self.pc += 3
+
+    def push(self):
+        sp = self.reg[7]  # Stack Pointer is held in reserved R07
+        print(sp)
+        # grab next instruction for register address containing value
+        reg_address = self.ram_read(self.pc + 1)
+        reg_val = self.reg[reg_address]
+
+        # store value in the next available slot in RAM apportioned to the stack (lower in memory)
+        self.ram_write(sp-1, reg_val)
+
+        # increment PC and decrement SP accordingly
+        self.pc += 2
+        sp -= 1
+
+    def pop(self):
+        sp = self.reg[7]
+
+        # grab next instruction for address that will contain the popped value
+        reg_address = self.ram_read(self.pc + 1)
+
+        # Grab the value at the current Stack Pointer address in memory
+        popped_val = self.ram_read(sp)
+
+        # Add popped_val to the specified register address
+        self.reg[reg_address] = popped_val
+
+        # Set current block in stack memory to zero and move lower in the stack (higher in memory)
+        self.ram_write(sp, 0)
+        sp += 1
+
+        # Increment PC accordingly
+        self.pc += 2
