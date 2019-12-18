@@ -117,7 +117,7 @@ class CPU:
 
     def push(self):
         sp = self.reg[7]  # Stack Pointer is held in reserved R07
-        print(sp)
+
         # grab next instruction for register address containing value
         reg_address = self.ram_read(self.pc + 1)
         reg_val = self.reg[reg_address]
@@ -127,7 +127,7 @@ class CPU:
 
         # increment PC and decrement SP accordingly
         self.pc += 2
-        sp -= 1
+        self.reg[7] = sp - 1
 
     def pop(self):
         sp = self.reg[7]
@@ -143,7 +143,7 @@ class CPU:
 
         # Set current block in stack memory to zero and move lower in the stack (higher in memory)
         self.ram_write(sp, 0)
-        sp += 1
+        self.reg[7] = sp + 1
 
         # Increment PC accordingly
         self.pc += 2
