@@ -10,7 +10,7 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         # hard-coded for now, will test programmatic after test
-        self.reg = [0] * 7 + [len(self.ram)-11]
+        self.reg = [0] * 7 + [len(self.ram)-12]
         # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
         self.pc = 0
         self.instructions = {
