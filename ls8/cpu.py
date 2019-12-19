@@ -96,7 +96,6 @@ class CPU:
 
                 # set new time for next 1-sec increment
                 self.time = new_time
-            print(f"time: {self.time}")
 
             if self.reg[6] == 1:  # interrupts enabled
                 self._interrupts_enabled()
@@ -257,3 +256,9 @@ class CPU:
 
         self.ram_write(ram_address, ram_value)
         self.pc += 3
+
+    def pra(self):
+        reg_address = self.ram_read(self.pc + 1)
+        ascii_num = self.reg[reg_address]
+        print(chr(ascii_num))
+        self.pc += 2
