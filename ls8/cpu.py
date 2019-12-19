@@ -18,8 +18,11 @@ class CPU:
             0b10000010: self.ldi,
             0b01000111: self.prn,
             0b10100010: self.mul,
+            0b10100000: self.add,
             0b01000101: self.push,
-            0b01000110: self.pop
+            0b01000110: self.pop,
+            0b01010000: self.call,
+            0b00010001: self.ret
         }
 
     def ram_read(self, mar):
@@ -82,7 +85,7 @@ class CPU:
             # fetch corresponding command from an instruction list instead of using large if/else block
             ir = self.ram[self.pc]
 
-            if self.instructions[ir] == "HLT":
+            if ir in self.instructions and self.instructions[ir] == "HLT":
                 break
             elif ir in self.instructions:
                 self.instructions[ir]()
@@ -113,6 +116,12 @@ class CPU:
         reg_a = self.ram_read(self.pc + 1)
         reg_b = self.ram_read(self.pc + 2)
         self.alu('MUL', reg_a, reg_b)
+        self.pc += 3
+
+    def add(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.alu('ADD', reg_a, reg_b)
         self.pc += 3
 
     def push(self):
@@ -165,3 +174,22 @@ class CPU:
 
         # Increment PC accordingly
         self.pc += 2
+
+    def call(self):
+        # push return address to the stack
+        return_address = self.pc + 2
+        self.reg[7] -= 1
+        self.ram_write(self.reg[7], return_address)
+
+        #  Set the PC to the value in the register
+        reg_val = self.ram_read(self.pc + 1)
+        sub_address = self.reg[reg_val]
+        self.pc = sub_address
+
+    def ret(self):
+        # pop the return address off the stack
+        return_address = self.ram_read(self.reg[7])
+        self.reg[7] += 1
+
+        # store in the pc so the CPU knows which instruction to pick up at
+        self.pc = return_address
