@@ -11,7 +11,7 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         # hard-coded for now, will test programmatic after test
-        self.reg = [0] * 7 + [len(self.ram)-12]
+        self.reg = [0b00000000] * 7 + [len(self.ram)-12]
         # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
         self.pc = 0
         self.time = time.time()
@@ -25,7 +25,8 @@ class CPU:
             0b01000110: self.pop,
             0b01010000: self.call,
             0b00010001: self.ret,
-            0b10000100: self.store
+            0b10000100: self.store,
+            0b00010011: self.i_ret
         }
 
     def ram_read(self, mar):
@@ -90,11 +91,15 @@ class CPU:
             new_time = time.time()
             if new_time - self.time >= 1:
                 # at least one second has passed since self.time was last set
-                # trigger timer
+                # trigger timer by setting the Interrupt Status from 0 to 1
+                self.reg[IS] = 0b10000000
 
                 # set new time for next 1-sec increment
                 self.time = new_time
             print(f"time: {self.time}")
+
+            if self.reg[6] == 1:  # interrupts enabled
+                self._interrupts_enabled()
 
             if ir in self.instructions and self.instructions[ir] == "HLT":
                 break
@@ -104,6 +109,46 @@ class CPU:
                 print(f"Unknown command at pc index {self.pc}")
                 self.trace()
                 sys.exit(1)
+
+    def _interrupts_enabled(self):
+        # Storing Interrupt Mask and Interrupt Status index for register to be more explicit
+        IM = 5
+        IS = 6
+
+        # Mask out all interrupts we aren't interested in
+        masked_interrupts = self.reg[IM] & self.reg[IS]
+        for i in range(8):
+            # each bit checked to see if one of the 8 interrupts happend
+            interrupt_happened = ((masked_interrupts >> i) & 1) == 1
+            if interrupt_happened:
+                # clear bit in IS
+                self.reg[IS] = 0b00000000
+
+                # PC register pushed on the stack
+                self.push(self.pc)
+
+                # FL register pushed on the stack
+                # TODO: Flags not currently used -- no CMP instructions handled yet
+
+                # Registers R0-R6 pushed on the stack in that order
+                for i in range(0, 7):
+                    self.push(self.reg[i])
+
+                # The address of the appropriate handler looked up from interrupt table
+                # Should be for 0 (Timer interrupt)
+                handler_address = self.ram_read(0xF8)
+
+                # Set the PC to the handler address
+                self.pc = handler_address
+
+                # Disable further interrupt checks
+                break
+
+    def i_ret(self):
+        """
+        Returns from interrupt flow
+        """
+        pass
 
     def ldi(self):
         reg_address = self.ram_read(self.pc + 1)
@@ -135,18 +180,22 @@ class CPU:
         self.alu('ADD', reg_a, reg_b)
         self.pc += 3
 
-    def push(self):
+    def push(self, val=None):
         sp = self.reg[7]  # Stack Pointer is held in reserved R07
+        if val is not None:  # check if push is being used internally for other functions
+            self.ram_write(sp-1, val)
 
-        # grab next instruction for register address containing value
-        reg_address = self.ram_read(self.pc + 1)
-        reg_val = self.reg[reg_address]
+        else:  # another function not using it, this is from instruction
+            # grab next instruction for register address containing value
+            reg_address = self.ram_read(self.pc + 1)
+            reg_val = self.reg[reg_address]
 
-        # store value in the next available slot in RAM apportioned to the stack (lower in memory)
-        self.ram_write(sp-1, reg_val)
+            # store value in the next available slot in RAM apportioned to the stack (lower in memory)
+            self.ram_write(sp-1, reg_val)
 
-        # increment PC and decrement SP accordingly
-        self.pc += 2
+            # increment PC and decrement SP accordingly
+            self.pc += 2
+        # either way sp gets decremented
         self.reg[7] = sp - 1
 
     def pop(self):
