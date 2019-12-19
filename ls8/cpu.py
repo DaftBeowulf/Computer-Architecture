@@ -148,7 +148,17 @@ class CPU:
         """
         Returns from interrupt flow
         """
-        pass
+        # Registers R6-R0 popped from stack in that order
+        for i in range(6, -1, -1):
+            reg_val = self.pop(return_val=True)
+            self.reg[i] = reg_val
+        # FL register popped off the stack
+        # TODO: FL not implemented yet
+
+        # return address popped off the stack and stored in PC
+        return_address = self.pop(return_val=True)
+        self.pc = return_address
+        # Interrupts re-enabled
 
     def ldi(self):
         reg_address = self.ram_read(self.pc + 1)
@@ -198,24 +208,29 @@ class CPU:
         # either way sp gets decremented
         self.reg[7] = sp - 1
 
-    def pop(self):
+    def pop(self, return_val=False):
         sp = self.reg[7]
 
-        # grab next instruction for address that will contain the popped value
-        reg_address = self.ram_read(self.pc + 1)
+        if return_val is True:  # will have a value passed into pop() if ran from int_ret
+            popped_val = self.ram_read(sp)
+            self.reg[7] = sp + 1
+            return popped_val
 
-        # Grab the value at the current Stack Pointer address in memory
-        popped_val = self.ram_read(sp)
+        else:
+            # grab next instruction for address that will contain the popped value
+            reg_address = self.ram_read(self.pc + 1)
 
-        # Add popped_val to the specified register address
-        self.reg[reg_address] = popped_val
+            # Grab the value at the current Stack Pointer address in memory
+            popped_val = self.ram_read(sp)
 
-        # Set current block in stack memory to zero and move lower in the stack (higher in memory)
-        self.ram_write(sp, 0)
-        self.reg[7] = sp + 1
+            # Add popped_val to the specified register address
+            self.reg[reg_address] = popped_val
 
-        # Increment PC accordingly
-        self.pc += 2
+            # Move lower in the stack (higher in memory)
+            self.reg[7] = sp + 1
+
+            # Increment PC accordingly
+            self.pc += 2
 
     def call(self):
         # push return address to the stack
