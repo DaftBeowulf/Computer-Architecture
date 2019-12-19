@@ -11,7 +11,7 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         # hard-coded for now, will test programmatic after test
-        self.reg = [0b00000000] * 7 + [len(self.ram)-12]
+        self.reg = [0] * 7 + [len(self.ram)-12]
         # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
         self.pc = 0
         self.time = time.time()
@@ -26,7 +26,9 @@ class CPU:
             0b01010000: self.call,
             0b00010001: self.ret,
             0b10000100: self.store,
-            0b00010011: self.i_ret
+            0b00010011: self.i_ret,
+            0b01010100: self.jmp,
+            0b01001000: self.pra
         }
 
     def ram_read(self, mar):
@@ -85,21 +87,22 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
+        IS = 6
         while True:
             # fetch corresponding command from an instruction list instead of using large if/else block
-            ir = self.ram[self.pc]
             new_time = time.time()
             if new_time - self.time >= 1:
                 # at least one second has passed since self.time was last set
                 # trigger timer by setting the Interrupt Status from 0 to 1
-                self.reg[IS] = 0b10000000
+                self.reg[IS] = 1
 
                 # set new time for next 1-sec increment
                 self.time = new_time
 
-            if self.reg[6] == 1:  # interrupts enabled
+            if self.reg[IS] == 1:  # key interrupts enabled
                 self._interrupts_enabled()
 
+            ir = self.ram[self.pc]
             if ir in self.instructions and self.instructions[ir] == "HLT":
                 break
             elif ir in self.instructions:
@@ -110,6 +113,7 @@ class CPU:
                 sys.exit(1)
 
     def _interrupts_enabled(self):
+        # print("interrupts enabled")
         # Storing Interrupt Mask and Interrupt Status index for register to be more explicit
         IM = 5
         IS = 6
@@ -119,9 +123,10 @@ class CPU:
         for i in range(8):
             # each bit checked to see if one of the 8 interrupts happend
             interrupt_happened = ((masked_interrupts >> i) & 1) == 1
+            # print(interrupt_happened)
             if interrupt_happened:
                 # clear bit in IS
-                self.reg[IS] = 0b00000000
+                self.reg[IS] = 0
 
                 # PC register pushed on the stack
                 self.push(self.pc)
@@ -141,6 +146,7 @@ class CPU:
                 self.pc = handler_address
 
                 # Disable further interrupt checks
+                self.reg[IS] = 0
                 break
 
     def i_ret(self):
@@ -251,10 +257,14 @@ class CPU:
         self.pc = return_address
 
     def store(self):
-        ram_address = self.ram_read(self.pc + 1)
-        ram_value = self.ram_read(self.pc + 2)
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
 
-        self.ram_write(ram_address, ram_value)
+        target_address = self.reg[reg_a]
+        target_val = self.reg[reg_b]
+
+        self.ram_write(target_address, target_val)
+        # self.reg[reg_a] = self.reg[reg_b]
         self.pc += 3
 
     def pra(self):
@@ -262,3 +272,14 @@ class CPU:
         ascii_num = self.reg[reg_address]
         print(chr(ascii_num))
         self.pc += 2
+
+    def jmp(self):
+        """
+        `JMP register`
+
+Jump to the address stored in the given register.
+
+Set the `PC` to the address stored in the given register.
+        """
+        jump_address = self.ram_read(self.pc + 1)
+        self.pc = self.reg[jump_address]
