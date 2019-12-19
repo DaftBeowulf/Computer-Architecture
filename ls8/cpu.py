@@ -24,7 +24,8 @@ class CPU:
             0b01000101: self.push,
             0b01000110: self.pop,
             0b01010000: self.call,
-            0b00010001: self.ret
+            0b00010001: self.ret,
+            0b10000100: self.store
         }
 
     def ram_read(self, mar):
@@ -185,3 +186,10 @@ class CPU:
 
         # store in the pc so the CPU knows which instruction to pick up at
         self.pc = return_address
+
+    def store(self):
+        ram_address = self.ram_read(self.pc + 1)
+        ram_value = self.ram_read(self.pc + 2)
+
+        self.ram_write(ram_address, ram_value)
+        self.pc += 3
