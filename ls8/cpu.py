@@ -1,6 +1,7 @@
 """CPU functionality."""
 
 import sys
+import time
 
 
 class CPU:
@@ -13,6 +14,7 @@ class CPU:
         self.reg = [0] * 7 + [len(self.ram)-12]
         # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
         self.pc = 0
+        self.time = time.time()
         self.instructions = {
             0b00000001: "HLT",
             0b10000010: self.ldi,
@@ -84,6 +86,14 @@ class CPU:
         while True:
             # fetch corresponding command from an instruction list instead of using large if/else block
             ir = self.ram[self.pc]
+            new_time = time.time()
+            if new_time - self.time >= 1:
+                # at least one second has passed since self.time was last set
+                # trigger timer
+
+                # set new time for next 1-sec increment
+                self.time = new_time
+            print(f"time: {self.time}")
 
             if ir in self.instructions and self.instructions[ir] == "HLT":
                 break
