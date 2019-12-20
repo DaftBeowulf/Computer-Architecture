@@ -31,6 +31,8 @@ class CPU:
             0b01001000: self.PRA,
             0b01010101: self.JEQ,
             0b01010110: self.JNE,
+            # 2 params => 10, not ALU => 0, doesn't set PC => 0, identifier = 1000 because ???
+            0b10001000: self.ADDI,
             0b10100010: self.MUL,  # ALU ops start here
             0b10100000: self.ADD,
             0b10100111: self.CMP,
@@ -339,6 +341,15 @@ class CPU:
         """
         jump_address = self.ram_read(self.PC + 1)
         self.PC = self.reg[jump_address]
+
+    def ADDI(self):
+        """
+        Adds an immediate value to a register value.
+        """
+        reg_address = self.ram_read(self.PC + 1)
+        immediate = self.ram_read(self.PC + 2)
+        self.reg[reg_address] += immediate
+        self.PC += 3
 
     # ALU functions start here
 
