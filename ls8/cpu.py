@@ -12,22 +12,37 @@ class CPU:
         self.ram = [0] * 256
         self.reg = [0] * 7 + [len(self.ram)-12]
         # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
-        self.pc = 0
+        self.PC = 0
+        # will be bit-& operated on with  the last the bits denoting LT, E, GT
+        self.FL = 0b00000000
+        # used to check for timer interrupts
         self.time = time.time()
         self.instructions = {
             0b00000001: "HLT",
-            0b10000010: self.ldi,
-            0b01000111: self.prn,
-            0b10100010: self.mul,
-            0b10100000: self.add,
-            0b01000101: self.push,
-            0b01000110: self.pop,
-            0b01010000: self.call,
-            0b00010001: self.ret,
-            0b10000100: self.store,
-            0b00010011: self.i_ret,
-            0b01010100: self.jmp,
-            0b01001000: self.pra
+            0b10000010: self.LDI,
+            0b01000111: self.PRN,
+            0b01000101: self.PUSH,
+            0b01000110: self.POP,
+            0b01010000: self.CALL,
+            0b00010001: self.RET,
+            0b10000100: self.ST,
+            0b00010011: self.IRET,
+            0b01010100: self.JMP,
+            0b01001000: self.PRA,
+            0b01010101: self.JEQ,
+            0b01010110: self.JNE,
+            # 2 params => 10, not ALU => 0, doesn't set PC => 0, identifier = 1000 because ???
+            0b10001000: self.ADDI,
+            0b10100010: self.MUL,  # ALU ops start here
+            0b10100000: self.ADD,
+            0b10100111: self.CMP,
+            0b10101000: self.AND,
+            0b10101010: self.OR,
+            0b10101011: self.XOR,
+            0b01101001: self.NOT,
+            0b10101100: self.SHL,
+            0b10101101: self.SHR,
+            0b10100100: self.MOD
         }
 
     def ram_read(self, address):
@@ -60,13 +75,40 @@ class CPU:
                 self.ram[address] = val
                 address += 1
 
-    def alu(self, op, reg_a, reg_b):
+    def ALU(self, op, reg_a, reg_b=None):
         """ALU operations."""
+        val_a = self.reg[reg_a]
+        if reg_b is not None:
+            val_b = self.reg[reg_b]
 
         if op == "ADD":
-            self.reg[reg_a] += self.reg[reg_b]
+            self.reg[reg_a] += val_b
         elif op == "MUL":
-            self.reg[reg_a] = self.reg[reg_a] * self.reg[reg_b]
+            self.reg[reg_a] *= val_b
+        elif op == "CMP":
+            if val_a < val_b:
+                self.FL = self.FL | 0b00000100
+            elif val_a == val_b:
+                self.FL = self.FL | 0b00000010
+            elif val_a > val_b:
+                self.FL = self.FL | 0b00000001
+        elif op == "AND":
+            self.reg[reg_a] = val_a & val_b
+        elif op == "OR":
+            self.reg[reg_a] = val_a | val_b
+        elif op == "XOR":
+            self.reg[reg_a] = val_a ^ val_b
+        elif op == "NOT":
+            self.reg[reg_a] = 255 - val_a
+        elif op == "SHL":
+            self.reg[reg_a] = val_a << val_b
+        elif op == "SHR":
+            self.reg[reg_a] = val_a >> val_b
+        elif op == "MOD":
+            if val_b == 0:
+                print("Warning: MOD operation attempted with % 0.")
+                sys.exit(1)
+            self.reg[reg_a] = val_a % val_b
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -77,12 +119,12 @@ class CPU:
         """
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
-            self.pc,
-            # self.fl,
+            self.PC,
+            self.FL,
             # self.ie,
-            self.ram_read(self.pc),
-            self.ram_read(self.pc + 1),
-            self.ram_read(self.pc + 2)
+            self.ram_read(self.PC),
+            self.ram_read(self.PC + 1),
+            self.ram_read(self.PC + 2)
         ), end='')
 
         for i in range(8):
@@ -110,13 +152,13 @@ class CPU:
             if self.reg[IS] >= 1:  # key interrupts enabled
                 self._interrupts_enabled()
 
-            ir = self.ram[self.pc]
+            ir = self.ram[self.PC]
             if ir in self.instructions and self.instructions[ir] == "HLT":
                 break
             elif ir in self.instructions:
                 self.instructions[ir]()
             else:
-                print(f"Unknown command at pc index {self.pc}")
+                print(f"Unknown command at PC index {self.PC}")
                 self.trace()
                 sys.exit(1)
 
@@ -139,10 +181,10 @@ class CPU:
                 self.reg[IS] = 0
 
                 # PC register pushed on the stack
-                self.push(self.pc)
+                self.PUSH(self.PC)
 
                 # FL register pushed on the stack
-                # TODO: Flags not currently used -- no CMP instructions handled yet
+                self.PUSH(self.FL)
 
                 # The address of the appropriate handler looked up from interrupt table
                 # Should be for 0 (Timer interrupt)
@@ -151,70 +193,49 @@ class CPU:
 
                 # Registers R0-R6 pushed on the stack in that order
                 for j in range(0, 7):
-                    self.push(self.reg[j])
+                    self.PUSH(self.reg[j])
 
                 # Set the PC to the handler address
-                self.pc = handler_address
+                self.PC = handler_address
 
                 # Disable further interrupt checks until Interrupt Return has occurred
                 break
 
-    def i_ret(self):
+    def IRET(self):
         """
         Returns from interrupt loop, retrieves all CPU state from before interrupt began.
         """
         # Registers R6-R0 popped from stack in that order
         for i in range(6, -1, -1):
-            reg_val = self.pop(return_val=True)
+            reg_val = self.POP(return_val=True)
             self.reg[i] = reg_val
 
         # FL register popped off the stack
-        # TODO: FL not implemented yet
+        self.FL = self.POP(return_val=True)
 
         # return address popped off the stack and stored in PC
-        return_address = self.pop(return_val=True)
-        self.pc = return_address
+        return_address = self.POP(return_val=True)
+        self.PC = return_address
 
-    def ldi(self):
+    def LDI(self):
         """
         Loads a value into a specific address in registry.
         """
-        reg_address = self.ram_read(self.pc + 1)
-        reg_value = self.ram_read(self.pc + 2)
+        reg_address = self.ram_read(self.PC + 1)
+        reg_value = self.ram_read(self.PC + 2)
 
         self.reg[reg_address] = reg_value
-        self.pc += 3
+        self.PC += 3
 
-    def prn(self):
+    def PRN(self):
         """
         Prints the value stored at the specific address in registry.
         """
-        reg_address = self.ram_read(self.pc + 1)
+        reg_address = self.ram_read(self.PC + 1)
         print(f"{self.reg[reg_address]}")
-        self.pc += 2
+        self.PC += 2
 
-    def mul(self):
-        """
-        ALU is passed the next two inputs (register addresses)
-        and multiplies the values stored there.
-        Stores the result in the first register address.
-        """
-        reg_a = self.ram_read(self.pc + 1)
-        reg_b = self.ram_read(self.pc + 2)
-        self.alu('MUL', reg_a, reg_b)
-        self.pc += 3
-
-    def add(self):
-        """
-        ALU is passed two register addresses and stores 
-        their sum at the first address.
-        """
-        reg_a = self.ram_read(self.pc + 1)
-        reg_b = self.ram_read(self.pc + 2)
-        self.alu('ADD', reg_a, reg_b)
-        self.pc += 3
-
-    def push(self, val=None):
+    def PUSH(self, val=None):
         """
         Pushes a value onto the allocated portion of memory for the stack.
         Grows downward from the top of memory as values are added.
@@ -222,23 +243,23 @@ class CPU:
         of reading from the next line of instruction.
         """
         sp = self.reg[7]  # Stack Pointer is held in reserved R07
-        if val is not None:  # check if push is being used internally for other functions
+        if val is not None:  # check if PUSH is being used internally for other functions
             self.ram_write(sp-1, val)
 
         else:
             # grab next instruction for register address containing value
-            reg_address = self.ram_read(self.pc + 1)
+            reg_address = self.ram_read(self.PC + 1)
             reg_val = self.reg[reg_address]
 
             # store value in the next available slot in RAM apportioned to the stack (lower in memory)
             self.ram_write(sp-1, reg_val)
 
             # increment PC and decrement SP accordingly
-            self.pc += 2
+            self.PC += 2
         # either way sp gets decremented
         self.reg[7] = sp - 1
 
-    def pop(self, return_val=False):
+    def POP(self, return_val=False):
         """
         If a return value is requested (internal use in other functions),
         removes latest item from the stack in memory and returns it.
@@ -247,14 +268,14 @@ class CPU:
         """
         sp = self.reg[7]
 
-        if return_val is True:  # will have a value passed into pop() if ran from int_ret
+        if return_val is True:  # will have a value passed into POP() if ran from int_ret
             popped_val = self.ram_read(sp)
             self.reg[7] = sp + 1
             return popped_val
 
         else:
             # grab next instruction for address that will contain the popped value
-            reg_address = self.ram_read(self.pc + 1)
+            reg_address = self.ram_read(self.PC + 1)
 
             # Grab the value at the current Stack Pointer address in memory
             popped_val = self.ram_read(sp)
@@ -266,57 +287,167 @@ class CPU:
             self.reg[7] = sp + 1
 
             # Increment PC accordingly
-            self.pc += 2
+            self.PC += 2
 
-    def call(self):
+    def CALL(self):
         """
         Stores return address in stack and sets PC to address specified in instruction.
         """
-        # push return address to the stack
-        return_address = self.pc + 2
-        self.push(return_address)
+        # PUSH return address to the stack
+        return_address = self.PC + 2
+        self.PUSH(return_address)
 
         #  Set the PC to the value in the register
-        reg_val = self.ram_read(self.pc + 1)
+        reg_val = self.ram_read(self.PC + 1)
         sub_address = self.reg[reg_val]
-        self.pc = sub_address
+        self.PC = sub_address
 
-    def ret(self):
+    def RET(self):
         """
-        Pops return address added in call() from the stack and sets the PC back to it.
+        Pops return address added in CALL() from the stack and sets the PC back to it.
         """
-        # pop the return address off the stack
-        return_address = self.pop(return_val=True)
+        # POP the return address off the stack
+        return_address = self.POP(return_val=True)
 
-        # store in the pc so the CPU knows which instruction to pick up at
-        self.pc = return_address
+        # store in the PC so the CPU knows which instruction to pick up at
+        self.PC = return_address
 
-    def store(self):
+    def ST(self):
         """
         Using two register addresses from instruction, stores a value
         at a specific memory address.
         """
-        reg_a = self.ram_read(self.pc + 1)
-        reg_b = self.ram_read(self.pc + 2)
+        reg_a = self.ram_read(self.PC + 1)
+        reg_b = self.ram_read(self.PC + 2)
 
         target_address = self.reg[reg_a]
         target_val = self.reg[reg_b]
 
         self.ram_write(target_address, target_val)
-        self.pc += 3
+        self.PC += 3
 
-    def pra(self):
+    def PRA(self):
         """
         Prints the alphanumeric character of an ASCII number at the given registry address.
         """
-        reg_address = self.ram_read(self.pc + 1)
+        reg_address = self.ram_read(self.PC + 1)
         ascii_num = self.reg[reg_address]
         print(chr(ascii_num))
-        self.pc += 2
+        self.PC += 2
 
-    def jmp(self):
+    def JMP(self):
         """
         Sets the PC to the given jump address.
         """
-        jump_address = self.ram_read(self.pc + 1)
-        self.pc = self.reg[jump_address]
+        jump_address = self.ram_read(self.PC + 1)
+        self.PC = self.reg[jump_address]
+
+    def ADDI(self):
+        """
+        Adds an immediate value to a register value.
+        """
+        reg_address = self.ram_read(self.PC + 1)
+        immediate = self.ram_read(self.PC + 2)
+        self.reg[reg_address] += immediate
+        self.PC += 3
+
+    # ALU functions start here
+
+    def MUL(self):
+        """
+        ALU is passed the next two inputs (register addresses)
+        and multiplies the values stored there.
+        Stores the result in the first register address.
+        """
+        reg_a = self.ram_read(self.PC + 1)
+        reg_b = self.ram_read(self.PC + 2)
+        self.ALU('MUL', reg_a, reg_b)
+        self.PC += 3
+
+    def ADD(self):
+        """
+        ALU is passed two register addresses and stores 
+        their sum at the first address.
+        """
+        reg_a = self.ram_read(self.PC + 1)
+        reg_b = self.ram_read(self.PC + 2)
+        self.ALU('ADD', reg_a, reg_b)
+        self.PC += 3
+
+    def CMP(self):
+        """
+        ALU is passed two register address and stores whether registerA
+        is less than, equal to, or greater than register B in the FL flag.
+        """
+        reg_a = self.ram_read(self.PC + 1)
+        reg_b = self.ram_read(self.PC + 2)
+        self.ALU('CMP', reg_a, reg_b)
+        self.PC += 3
+
+    def JEQ(self):
+        """
+        If equal flag is set to true, jump to address stored in given register
+        """
+        if (self.FL & 0b00000010) >> 1 == 1:
+            jump_address = self.ram_read(self.PC + 1)
+            self.PC = self.reg[jump_address]
+        else:
+            self.PC += 2
+
+    def JNE(self):
+        """
+        If equal flag is clear, jump to the address stored in given register
+        """
+        if (self.FL & 0b00000010) >> 1 == 0:
+            jump_address = self.ram_read(self.PC + 1)
+            self.PC = self.reg[jump_address]
+        else:
+            self.PC += 2
+
+    def AND(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('AND', reg_a, reg_b)
+
+        self.pc += 3
+
+    def OR(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('OR', reg_a, reg_b)
+
+        self.pc += 3
+
+    def XOR(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('XOR', reg_a, reg_b)
+
+        self.pc += 3
+
+    def NOT(self):
+        reg_a = self.ram_read(self.pc + 1)
+        self.ALU('NOT', reg_a)
+
+        self.pc += 2
+
+    def SHL(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('SHL', reg_a, reg_b)
+
+        self.pc += 3
+
+    def SHR(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('SHR', reg_a, reg_b)
+
+        self.pc += 3
+
+    def MOD(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('MOD', reg_a, reg_b)
+
+        self.pc += 3
