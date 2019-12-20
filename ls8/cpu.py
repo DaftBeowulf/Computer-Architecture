@@ -14,6 +14,8 @@ class CPU:
         # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
         self.pc = 0
         self.time = time.time()
+        # will be bit-& operated on with  the last the bits denoting LT, E, GT
+        self.fl = 0b00000000
         self.instructions = {
             0b00000001: "HLT",
             0b10000010: self.ldi,
@@ -63,11 +65,20 @@ class CPU:
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
-
+        val_a = self.reg[reg_a]
+        val_b = self.reg[reg_b]
         if op == "ADD":
-            self.reg[reg_a] += self.reg[reg_b]
+            self.reg[reg_a] += val_b
         elif op == "MUL":
-            self.reg[reg_a] = self.reg[reg_a] * self.reg[reg_b]
+            self.reg[reg_a] *= val_b
+        elif op == "CMP":
+            if val_a < val_b:
+                self.fl = self.fl | 0b00000100
+            elif val_a == val_b:
+                self.fl = self.fl | 0b00000010
+            elif val_a > val_b:
+                self.fl = self.fl | 0b00000001
+
         else:
             raise Exception("Unsupported ALU operation")
 
