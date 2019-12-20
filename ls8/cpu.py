@@ -154,7 +154,7 @@ class CPU:
                 self.push(self.pc)
 
                 # FL register pushed on the stack
-                # TODO: Flags not currently used -- no CMP instructions handled yet
+                self.push(self.fl)
 
                 # The address of the appropriate handler looked up from interrupt table
                 # Should be for 0 (Timer interrupt)
@@ -181,7 +181,7 @@ class CPU:
             self.reg[i] = reg_val
 
         # FL register popped off the stack
-        # TODO: FL not implemented yet
+        self.fl = self.pop(return_val=True)
 
         # return address popped off the stack and stored in PC
         return_address = self.pop(return_val=True)
