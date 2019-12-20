@@ -27,7 +27,8 @@ class CPU:
             0b10000100: self.store,
             0b00010011: self.i_ret,
             0b01010100: self.jmp,
-            0b01001000: self.pra
+            0b01001000: self.pra,
+            0b10100111: self.cmp
         }
 
     def ram_read(self, address):
@@ -320,3 +321,13 @@ class CPU:
         """
         jump_address = self.ram_read(self.pc + 1)
         self.pc = self.reg[jump_address]
+
+    def cmp(self):
+        """
+        ALU is passed two register address and stores whether registerA
+        is less than, equal to, or greater than register B in the FL flag.
+        """
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.alu('CMP', reg_a, reg_b)
+        self.pc += 3
