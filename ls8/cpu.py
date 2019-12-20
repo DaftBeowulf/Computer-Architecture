@@ -21,8 +21,6 @@ class CPU:
             0b00000001: "HLT",
             0b10000010: self.LDI,
             0b01000111: self.PRN,
-            0b10100010: self.MUL,
-            0b10100000: self.ADD,
             0b01000101: self.PUSH,
             0b01000110: self.POP,
             0b01010000: self.CALL,
@@ -31,9 +29,11 @@ class CPU:
             0b00010011: self.IRET,
             0b01010100: self.JMP,
             0b01001000: self.PRA,
-            0b10100111: self.CMP,
             0b01010101: self.JEQ,
             0b01010110: self.JNE,
+            0b10100010: self.MUL,  # ALU ops start here
+            0b10100000: self.ADD,
+            0b10100111: self.CMP,
             0b10101000: self.AND,
             0b10101010: self.OR,
             0b10101011: self.XOR,
@@ -233,27 +233,6 @@ class CPU:
         print(f"{self.reg[reg_address]}")
         self.PC += 2
 
-    def MUL(self):
-        """
-        ALU is passed the next two inputs (register addresses)
-        and multiplies the values stored there.
-        Stores the result in the first register address.
-        """
-        reg_a = self.ram_read(self.PC + 1)
-        reg_b = self.ram_read(self.PC + 2)
-        self.ALU('MUL', reg_a, reg_b)
-        self.PC += 3
-
-    def ADD(self):
-        """
-        ALU is passed two register addresses and stores 
-        their sum at the first address.
-        """
-        reg_a = self.ram_read(self.PC + 1)
-        reg_b = self.ram_read(self.PC + 2)
-        self.ALU('ADD', reg_a, reg_b)
-        self.PC += 3
-
     def PUSH(self, val=None):
         """
         Pushes a value onto the allocated portion of memory for the stack.
@@ -360,6 +339,29 @@ class CPU:
         """
         jump_address = self.ram_read(self.PC + 1)
         self.PC = self.reg[jump_address]
+
+    # ALU functions start here
+
+    def MUL(self):
+        """
+        ALU is passed the next two inputs (register addresses)
+        and multiplies the values stored there.
+        Stores the result in the first register address.
+        """
+        reg_a = self.ram_read(self.PC + 1)
+        reg_b = self.ram_read(self.PC + 2)
+        self.ALU('MUL', reg_a, reg_b)
+        self.PC += 3
+
+    def ADD(self):
+        """
+        ALU is passed two register addresses and stores 
+        their sum at the first address.
+        """
+        reg_a = self.ram_read(self.PC + 1)
+        reg_b = self.ram_read(self.PC + 2)
+        self.ALU('ADD', reg_a, reg_b)
+        self.PC += 3
 
     def CMP(self):
         """
