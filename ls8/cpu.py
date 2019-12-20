@@ -10,7 +10,6 @@ class CPU:
     def __init__(self):
         """Construct a new CPU."""
         self.ram = [0] * 256
-        # hard-coded for now, will test programmatic after test
         self.reg = [0] * 7 + [len(self.ram)-12]
         # final register reserved for SP -- grows downward, and final 11 blocks are reserved for other uses
         self.pc = 0
@@ -31,11 +30,17 @@ class CPU:
             0b01001000: self.pra
         }
 
-    def ram_read(self, mar):
-        return self.ram[mar]
+    def ram_read(self, address):
+        """
+        Reads a stored value at the given address in memory.
+        """
+        return self.ram[address]
 
-    def ram_write(self, mar, val):
-        self.ram[mar] = val
+    def ram_write(self, address, val):
+        """
+        Stores a value into a block of memory at the given address.
+        """
+        self.ram[address] = val
 
     def load(self, filename):
         """Load a program into memory."""
@@ -86,7 +91,10 @@ class CPU:
         print()
 
     def run(self):
-        """Run the CPU."""
+        """
+        Run the CPU.
+        Checks each second for an interrupt flag.
+        """
         IS = 6
         while True:
             # fetch corresponding command from an instruction list instead of using large if/else block
@@ -99,7 +107,7 @@ class CPU:
                 # set new time for next 1-sec increment
                 self.time = new_time
 
-            if self.reg[IS] == 1:  # key interrupts enabled
+            if self.reg[IS] >= 1:  # key interrupts enabled
                 self._interrupts_enabled()
 
             ir = self.ram[self.pc]
@@ -113,8 +121,11 @@ class CPU:
                 sys.exit(1)
 
     def _interrupts_enabled(self):
-        # print("interrupts enabled")
-        # Storing Interrupt Mask and Interrupt Status index for register to be more explicit
+        """
+        Uses masking and bitshifting to find out which interrupt was triggered. Pushes all
+        relevant CPU state onto the stack until interrupt loop is complete.
+        """
+        # Storing Interrupt Mask and Interrupt Status register indexes
         IM = 5
         IS = 6
 
@@ -123,7 +134,6 @@ class CPU:
         for i in range(8):
             # each bit checked to see if one of the 8 interrupts happend
             interrupt_happened = ((masked_interrupts >> i) & 1) == 1
-            # print(interrupt_happened)
             if interrupt_happened:
                 # clear bit in IS
                 self.reg[IS] = 0
@@ -134,38 +144,41 @@ class CPU:
                 # FL register pushed on the stack
                 # TODO: Flags not currently used -- no CMP instructions handled yet
 
-                # Registers R0-R6 pushed on the stack in that order
-                for i in range(0, 7):
-                    self.push(self.reg[i])
-
                 # The address of the appropriate handler looked up from interrupt table
                 # Should be for 0 (Timer interrupt)
-                handler_address = self.ram_read(0xF8)
+                # i will be zero when IS set to 000000001, other values would be different bits => different interrupt vector
+                handler_address = self.ram_read(0xF8 + i)
+
+                # Registers R0-R6 pushed on the stack in that order
+                for j in range(0, 7):
+                    self.push(self.reg[j])
 
                 # Set the PC to the handler address
                 self.pc = handler_address
 
-                # Disable further interrupt checks
-                self.reg[IS] = 0
+                # Disable further interrupt checks until Interrupt Return has occurred
                 break
 
     def i_ret(self):
         """
-        Returns from interrupt flow
+        Returns from interrupt loop, retrieves all CPU state from before interrupt began.
         """
         # Registers R6-R0 popped from stack in that order
         for i in range(6, -1, -1):
             reg_val = self.pop(return_val=True)
             self.reg[i] = reg_val
+
         # FL register popped off the stack
         # TODO: FL not implemented yet
 
         # return address popped off the stack and stored in PC
         return_address = self.pop(return_val=True)
         self.pc = return_address
-        # Interrupts re-enabled
 
     def ldi(self):
+        """
+        Loads a value into a specific address in registry.
+        """
         reg_address = self.ram_read(self.pc + 1)
         reg_value = self.ram_read(self.pc + 2)
 
@@ -173,16 +186,18 @@ class CPU:
         self.pc += 3
 
     def prn(self):
-        print(f"{self.reg[self.ram[self.pc+1]]}")
+        """
+        Prints the value stored at the specific address in registry.
+        """
+        reg_address = self.ram_read(self.pc + 1)
+        print(f"{self.reg[reg_address]}")
         self.pc += 2
 
     def mul(self):
         """
-        Passes the next two inputs (register addresses)
+        ALU is passed the next two inputs (register addresses)
         and multiplies the values stored there.
         Stores the result in the first register address.
-
-        Now has alu() run this since it's an ALU op
         """
         reg_a = self.ram_read(self.pc + 1)
         reg_b = self.ram_read(self.pc + 2)
@@ -190,17 +205,27 @@ class CPU:
         self.pc += 3
 
     def add(self):
+        """
+        ALU is passed two register addresses and stores 
+        their sum at the first address.
+        """
         reg_a = self.ram_read(self.pc + 1)
         reg_b = self.ram_read(self.pc + 2)
         self.alu('ADD', reg_a, reg_b)
         self.pc += 3
 
     def push(self, val=None):
+        """
+        Pushes a value onto the allocated portion of memory for the stack.
+        Grows downward from the top of memory as values are added.
+        If passed a value as a parameter, pushes that onto the stack instead 
+        of reading from the next line of instruction.
+        """
         sp = self.reg[7]  # Stack Pointer is held in reserved R07
         if val is not None:  # check if push is being used internally for other functions
             self.ram_write(sp-1, val)
 
-        else:  # another function not using it, this is from instruction
+        else:
             # grab next instruction for register address containing value
             reg_address = self.ram_read(self.pc + 1)
             reg_val = self.reg[reg_address]
@@ -214,6 +239,12 @@ class CPU:
         self.reg[7] = sp - 1
 
     def pop(self, return_val=False):
+        """
+        If a return value is requested (internal use in other functions),
+        removes latest item from the stack in memory and returns it.
+        Otherwise, pops item from stack and sets to registry address
+        from next line of instruction.
+        """
         sp = self.reg[7]
 
         if return_val is True:  # will have a value passed into pop() if ran from int_ret
@@ -238,10 +269,12 @@ class CPU:
             self.pc += 2
 
     def call(self):
+        """
+        Stores return address in stack and sets PC to address specified in instruction.
+        """
         # push return address to the stack
         return_address = self.pc + 2
-        self.reg[7] -= 1
-        self.ram_write(self.reg[7], return_address)
+        self.push(return_address)
 
         #  Set the PC to the value in the register
         reg_val = self.ram_read(self.pc + 1)
@@ -249,14 +282,20 @@ class CPU:
         self.pc = sub_address
 
     def ret(self):
+        """
+        Pops return address added in call() from the stack and sets the PC back to it.
+        """
         # pop the return address off the stack
-        return_address = self.ram_read(self.reg[7])
-        self.reg[7] += 1
+        return_address = self.pop(return_val=True)
 
         # store in the pc so the CPU knows which instruction to pick up at
         self.pc = return_address
 
     def store(self):
+        """
+        Using two register addresses from instruction, stores a value
+        at a specific memory address.
+        """
         reg_a = self.ram_read(self.pc + 1)
         reg_b = self.ram_read(self.pc + 2)
 
@@ -264,10 +303,12 @@ class CPU:
         target_val = self.reg[reg_b]
 
         self.ram_write(target_address, target_val)
-        # self.reg[reg_a] = self.reg[reg_b]
         self.pc += 3
 
     def pra(self):
+        """
+        Prints the alphanumeric character of an ASCII number at the given registry address.
+        """
         reg_address = self.ram_read(self.pc + 1)
         ascii_num = self.reg[reg_address]
         print(chr(ascii_num))
@@ -275,11 +316,7 @@ class CPU:
 
     def jmp(self):
         """
-        `JMP register`
-
-Jump to the address stored in the given register.
-
-Set the `PC` to the address stored in the given register.
+        Sets the PC to the given jump address.
         """
         jump_address = self.ram_read(self.pc + 1)
         self.pc = self.reg[jump_address]
