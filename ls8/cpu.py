@@ -32,6 +32,7 @@ class CPU:
             0b01001000: self.pra,
             0b10100111: self.cmp,
             0b01010101: self.jeq,
+            0b01010110: self.jne
         }
 
     def ram_read(self, address):
@@ -349,6 +350,16 @@ class CPU:
         If equal flag is set to true, jump to address stored in given register
         """
         if (self.fl & 0b00000010) >> 1 == 1:
+            jump_address = self.ram_read(self.pc + 1)
+            self.pc = self.reg[jump_address]
+        else:
+            self.pc += 2
+
+    def jne(self):
+        """
+        If equal flag is clear, jump to the address stored in given register
+        """
+        if (self.fl & 0b00000010) >> 1 == 0:
             jump_address = self.ram_read(self.pc + 1)
             self.pc = self.reg[jump_address]
         else:
