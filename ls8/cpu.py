@@ -33,7 +33,14 @@ class CPU:
             0b01001000: self.PRA,
             0b10100111: self.CMP,
             0b01010101: self.JEQ,
-            0b01010110: self.JNE
+            0b01010110: self.JNE,
+            0b10101000: self.AND,
+            0b10101010: self.OR,
+            0b10101011: self.XOR,
+            0b01101001: self.NOT,
+            0b10101100: self.SHL,
+            0b10101101: self.SHR,
+            0b10100100: self.MOD
         }
 
     def ram_read(self, address):
@@ -66,10 +73,12 @@ class CPU:
                 self.ram[address] = val
                 address += 1
 
-    def alu(self, op, reg_a, reg_b):
+    def ALU(self, op, reg_a, reg_b=None):
         """ALU operations."""
         val_a = self.reg[reg_a]
-        val_b = self.reg[reg_b]
+        if reg_b is not None:
+            val_b = self.reg[reg_b]
+
         if op == "ADD":
             self.reg[reg_a] += val_b
         elif op == "MUL":
@@ -81,7 +90,23 @@ class CPU:
                 self.FL = self.FL | 0b00000010
             elif val_a > val_b:
                 self.FL = self.FL | 0b00000001
-
+        elif op == "AND":
+            self.reg[reg_a] = val_a & val_b
+        elif op == "OR":
+            self.reg[reg_a] = val_a | val_b
+        elif op == "XOR":
+            self.reg[reg_a] = val_a ^ val_b
+        elif op == "NOT":
+            self.reg[reg_a] = 255 - val_a
+        elif op == "SHL":
+            self.reg[reg_a] = val_a << val_b
+        elif op == "SHR":
+            self.reg[reg_a] = val_a >> val_b
+        elif op == "MOD":
+            if val_b == 0:
+                print("Warning: MOD operation attempted with % 0.")
+                sys.exit(1)
+            self.reg[reg_a] = val_a % val_b
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -216,7 +241,7 @@ class CPU:
         """
         reg_a = self.ram_read(self.PC + 1)
         reg_b = self.ram_read(self.PC + 2)
-        self.alu('MUL', reg_a, reg_b)
+        self.ALU('MUL', reg_a, reg_b)
         self.PC += 3
 
     def ADD(self):
@@ -226,7 +251,7 @@ class CPU:
         """
         reg_a = self.ram_read(self.PC + 1)
         reg_b = self.ram_read(self.PC + 2)
-        self.alu('ADD', reg_a, reg_b)
+        self.ALU('ADD', reg_a, reg_b)
         self.PC += 3
 
     def PUSH(self, val=None):
@@ -343,7 +368,7 @@ class CPU:
         """
         reg_a = self.ram_read(self.PC + 1)
         reg_b = self.ram_read(self.PC + 2)
-        self.alu('CMP', reg_a, reg_b)
+        self.ALU('CMP', reg_a, reg_b)
         self.PC += 3
 
     def JEQ(self):
@@ -365,3 +390,51 @@ class CPU:
             self.PC = self.reg[jump_address]
         else:
             self.PC += 2
+
+    def AND(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('AND', reg_a, reg_b)
+
+        self.pc += 3
+
+    def OR(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('OR', reg_a, reg_b)
+
+        self.pc += 3
+
+    def XOR(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('XOR', reg_a, reg_b)
+
+        self.pc += 3
+
+    def NOT(self):
+        reg_a = self.ram_read(self.pc + 1)
+        self.ALU('NOT', reg_a)
+
+        self.pc += 2
+
+    def SHL(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('SHL', reg_a, reg_b)
+
+        self.pc += 3
+
+    def SHR(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('SHR', reg_a, reg_b)
+
+        self.pc += 3
+
+    def MOD(self):
+        reg_a = self.ram_read(self.pc + 1)
+        reg_b = self.ram_read(self.pc + 2)
+        self.ALU('MOD', reg_a, reg_b)
+
+        self.pc += 3
