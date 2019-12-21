@@ -335,13 +335,6 @@ class CPU:
         print(chr(ascii_num))
         self.PC += 2
 
-    def JMP(self):
-        """
-        Sets the PC to the given jump address.
-        """
-        jump_address = self.ram_read(self.PC + 1)
-        self.PC = self.reg[jump_address]
-
     def ADDI(self):
         """
         Adds an immediate value to a register value.
@@ -350,6 +343,33 @@ class CPU:
         immediate = self.ram_read(self.PC + 2)
         self.reg[reg_address] += immediate
         self.PC += 3
+
+    def JMP(self):
+        """
+        Sets the PC to the given jump address.
+        """
+        jump_address = self.ram_read(self.PC + 1)
+        self.PC = self.reg[jump_address]
+
+    def JEQ(self):
+        """
+        If equal flag is set to true, jump to address stored in given register
+        """
+        if (self.FL & 0b00000010) >> 1 == 1:
+            jump_address = self.ram_read(self.PC + 1)
+            self.PC = self.reg[jump_address]
+        else:
+            self.PC += 2
+
+    def JNE(self):
+        """
+        If equal flag is clear, jump to the address stored in given register
+        """
+        if (self.FL & 0b00000010) >> 1 == 0:
+            jump_address = self.ram_read(self.PC + 1)
+            self.PC = self.reg[jump_address]
+        else:
+            self.PC += 2
 
     # ALU functions start here
 
@@ -383,26 +403,6 @@ class CPU:
         reg_b = self.ram_read(self.PC + 2)
         self.ALU('CMP', reg_a, reg_b)
         self.PC += 3
-
-    def JEQ(self):
-        """
-        If equal flag is set to true, jump to address stored in given register
-        """
-        if (self.FL & 0b00000010) >> 1 == 1:
-            jump_address = self.ram_read(self.PC + 1)
-            self.PC = self.reg[jump_address]
-        else:
-            self.PC += 2
-
-    def JNE(self):
-        """
-        If equal flag is clear, jump to the address stored in given register
-        """
-        if (self.FL & 0b00000010) >> 1 == 0:
-            jump_address = self.ram_read(self.PC + 1)
-            self.PC = self.reg[jump_address]
-        else:
-            self.PC += 2
 
     def AND(self):
         reg_a = self.ram_read(self.pc + 1)
